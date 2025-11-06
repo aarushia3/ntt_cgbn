@@ -1,8 +1,17 @@
-# find the primitive root of unity
-def find_primitive_root(order, mod):
-    for g in range(2, mod):
-        if all(pow(g, order // p, mod) != 1 for p in prime_factors(order)):
-            return g
-    return None
+def find_primitive_root(order, modulus):
+    primitive_roots = []
+    for candidate in range(2, modulus):
+        is_primitive = True
+        if pow(candidate, order, modulus) == 1:
+            for exp in range(1, order):
+                if pow(candidate, exp, modulus) == 1:
+                    is_primitive = False
+                    break
+        else:
+            is_primitive = False
+        if is_primitive:
+            primitive_roots.append(candidate)
+    return primitive_roots
 
-find_primitive_root(4, 7681)
+# print(find_primitive_root(8, 2013265921)) [211723194, 420899707, 1592366214, 1801542727]
+print(31**8 % 2013265921)
