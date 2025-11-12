@@ -25,7 +25,7 @@ void host_multiply(const std::vector<limb_t> &A, const std::vector<limb_t> &B,
                    std::vector<limb_t> &C) {
   size_t L_A = A.size();
   size_t L_B = B.size();
-  size_t L_C = L_A + L_B - 1;
+  // size_t L_C = L_A + L_B - 1;
 
   // constants
   constexpr int NUM_MODULI = 4;
@@ -33,11 +33,11 @@ void host_multiply(const std::vector<limb_t> &A, const std::vector<limb_t> &B,
                                            2013265921};
 
   // pad to NTT length
-  size_t N = 1;
-  while (N < L_C)
-    N <<= 1;
+  // size_t N = 1;
+  // while (N < L_C)
+  //   N <<= 1;
 
-  std::vector<uint32_t> A_pad(N, 0), B_pad(N, 0);
+  std::vector<uint32_t> A_pad(L_A, 0), B_pad(L_B, 0);
   std::copy(A.begin(), A.end(), A_pad.begin());
   std::copy(B.begin(), B.end(), B_pad.begin());
 
@@ -53,24 +53,23 @@ void host_multiply(const std::vector<limb_t> &A, const std::vector<limb_t> &B,
   std::cout << std::endl;
 
   // run NTT for each modulus
-  std::vector<std::vector<uint32_t>> C_mod(NUM_MODULI,
-                                           std::vector<uint32_t>(N));
-  for (int i = 0; i < NUM_MODULI; i++) {
+  // std::vector<std::vector<uint32_t>> C_mod(NUM_MODULI, std::vector<uint32_t>(N));
+  for (int i = 0; i < 1; i++) {
     uint32_t p = MODULI[i];
-    gpu_ntt_forward(A_pad, p);
+    gpu_ntt_forward(A_pad);
     // print out A_pad after NTT
     std::cout << "[Host] NTT(A) mod " << p << ": ";
     for (auto x : A_pad)
       std::cout << x << " ";
     std::cout << std::endl;
-    gpu_ntt_forward(B_pad, p);
+    gpu_ntt_forward(B_pad);
     // print out B_pad after NTT
     std::cout << "[Host] NTT(B) mod " << p << ": ";
     for (auto x : B_pad)
       std::cout << x << " ";
     std::cout << std::endl;
     std::cout << "================================" << std::endl;
-    gpu_pointwise_multiply(A_pad, B_pad, C_mod[i], p);
+    // gpu_pointwise_multiply(A_pad, B_pad, C_mod[i], p);
     // gpu_ntt_inverse(C_mod[i], p);
   }
 
@@ -83,6 +82,6 @@ void host_multiply(const std::vector<limb_t> &A, const std::vector<limb_t> &B,
   // gpu_carry_propagate(C_big, C, BASE);
 
   // trim
-  while (C.size() > 1 && C.back() == 0)
-    C.pop_back();
+  // while (C.size() > 1 && C.back() == 0)
+  //   C.pop_back();
 }
