@@ -11,7 +11,7 @@ using namespace gpuntt;
 
 #define BATCH 1
 
-__host__ void gpu_ntt_forward(vector<uint32_t> &a) {
+__host__ void gpu_ntt_forward(vector<uint32_t> &a, vector<vector<uint32_t>> a_mod) {
     cout << "Entering host side gpu_ntt_forward function" << endl;
 
     // need to convert to compatible data type
@@ -19,7 +19,7 @@ __host__ void gpu_ntt_forward(vector<uint32_t> &a) {
 
     size_t N = a.size();
     if (N == 0) return;
-    double logN = log2(static_cast<double>(N));
+    int logN = log2(static_cast<int>(N));
 
     // Primitive roots for one CRT prime
     NTTFactors factor(Modulus<Data64>(7681), (Data64)3383, (Data64)4298); // the order is the prime modulus (p), omega (root of unity), psi (inverse root of unity)
@@ -64,7 +64,7 @@ __host__ void gpu_ntt_forward(vector<uint32_t> &a) {
     GPUNTT_CUDA_CHECK(cudaMemcpy(test_modulus, test_modulus_, sizeof(Modulus<Data64>), cudaMemcpyHostToDevice));
 
     ntt_rns_configuration<Data64> cfg_ntt = {
-            .n_power = LOGN,
+            .n_power = logN,
             .ntt_type = FORWARD,
             .ntt_layout = PerPolynomial,
             .reduction_poly = ReductionPolynomial::X_N_minus,
@@ -105,6 +105,17 @@ __host__ void gpu_ntt_forward(vector<uint32_t> &a) {
         {
             cout << "All Correct for PerPolynomial NTT." << endl;
         }
+    }
+
+    // copy Output_Host to c_mod[i]
+    if (c_mod.empty()) c_mod.push_back(std::vector<uint32_t>());
+    c_mod[0].clear();
+    c_mod[0].reserve(parameters.n * 2);  // each data64 has two uint32_ts? i'm not sure how the datatypes will work
+    for (size_t i = 0; i < parameters.n; ++i) {
+        uint32_t low  = static_cast<uint32_t>(Output_Host[i] & 0xFFFFFFFF);        // lower 32 bits
+        uint32_t high = static_cast<uint32_t>((Output_Host[i] >> 32) & 0xFFFFFFFF); // upper 32 bits
+        c_mod[0].push_back(low);
+        c_mod[0].push_back(high);
     }
 
     GPUNTT_CUDA_CHECK(cudaFree(InOut_Datas));
