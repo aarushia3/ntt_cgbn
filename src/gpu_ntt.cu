@@ -9,7 +9,6 @@
 using namespace std;
 using namespace gpuntt;
 
-#define LOGN 2
 #define BATCH 1
 
 __host__ void gpu_ntt_forward(vector<uint32_t> &a) {
@@ -20,10 +19,11 @@ __host__ void gpu_ntt_forward(vector<uint32_t> &a) {
 
     size_t N = a.size();
     if (N == 0) return;
+    double logN = log2(static_cast<double>(N));
 
     // Primitive roots for one CRT prime
-    NTTFactors factor(Modulus<Data64>(7681), (Data64)3383, (Data64)4298);
-    NTTParameters parameters(LOGN, factor, ReductionPolynomial::X_N_minus);
+    NTTFactors factor(Modulus<Data64>(7681), (Data64)3383, (Data64)4298); // the order is the prime modulus (p), omega (root of unity), psi (inverse root of unity)
+    NTTParameters parameters(logN, factor, ReductionPolynomial::X_N_minus); // N is the length of the array you are sending in
 
     // CPU NTT
     NTTCPU<Data64> generator(parameters);
