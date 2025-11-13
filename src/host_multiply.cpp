@@ -17,7 +17,7 @@
 
 using namespace std;
 
-#define NUM_MODULI 4
+#define NUM_MODULI 2
 
 // parameters
 constexpr unsigned LIMB_BITS = 32;
@@ -26,7 +26,7 @@ constexpr uint64_t BASE = (1ULL << LIMB_BITS); // base b = 2^w
 
 // host functions
 void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
-                vector<limb_t> &C) {
+          vector<limb_t> &C) {
     size_t L_A = A.size();
     size_t L_B = B.size();
     size_t L_C = L_A + L_B - 1;
@@ -34,7 +34,7 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
     // pad to NTT length, must be power of 2
     size_t N = 1;
     while (N < L_C)
-      N <<= 1;
+        N <<= 1;
 
     vector<uint32_t> A_pad(L_A, 0), B_pad(L_B, 0);
     copy(A.begin(), A.end(), A_pad.begin());
@@ -43,12 +43,12 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
     // print A_pad and B_pad
     cout << "[Host] Padded A: ";
     for (auto x : A_pad)
-    cout << x << " ";
+        cout << x << " ";
     cout << endl;
 
     cout << "[Host] Padded B: ";
     for (auto x : B_pad)
-    cout << x << " ";
+        cout << x << " ";
     cout << endl;
 
     // gpu_ntt_forward should return 4 versions of the NTT. don't do the for loop
@@ -57,7 +57,9 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
     gpu_ntt_forward(A_pad, A_mod);
     gpu_ntt_forward(B_pad, B_mod);
 
-    // pointwise multiplication for 
+    // pointwise multiplication for each of the elements of A_mod, B_mod
+    vector<vector<uint32_t>> C_mod;
+    // gpu_pointwise_multiply(A_mod, B_mod, C_mod);
 
     // CRT recombination (CGBN)
     // vector<__uint128_t> C_big(N);
@@ -70,4 +72,4 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
     // trim
     // while (C.size() > 1 && C.back() == 0)
     //   C.pop_back();
-    }
+}
