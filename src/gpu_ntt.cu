@@ -1,19 +1,14 @@
-#include "modular_arith.cuh"  // <- your modular arithmetic definitions
+#include "modular_arith.cuh"
 #include <cuda_runtime.h>
 #include <iostream>
 #include <vector>
 #include <cmath>
 
 #include "ntt.cuh"
+#include "config.h"
 
 using namespace std;
 using namespace gpuntt;
-
-#define BATCH 1
-#define NUM_MODULI 2
-
-// Primitive roots for one CRT prime
-// NTTFactors factor(Modulus<Data64>(7681), (Data64)3383, (Data64)4298); // the order is the prime modulus (p), omega (root of unity), psi (inverse root of unity)
 
 NTTFactors<Data64> factors[4] = {
     {Modulus<Data64>(7681), 3383, 4298},

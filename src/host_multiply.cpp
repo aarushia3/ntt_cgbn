@@ -12,12 +12,11 @@
 #include "../include/gpu_cgbn.h"
 #include "../include/gpu_ntt.h"
 #include "../include/multiply.h"
+#include "config.h"
 
 #include <algorithm>
 
 using namespace std;
-
-#define NUM_MODULI 2
 
 // parameters
 constexpr unsigned LIMB_BITS = 32;
