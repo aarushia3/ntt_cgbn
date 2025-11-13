@@ -19,8 +19,8 @@ NTTFactors<Data64> factors[4] = {
 
 vector<uint32_t> moduli = {7681, 7681, 7681, 7681};
 
-__host__ void gpu_ntt_forward(vector<uint32_t> &a, vector<vector<uint32_t>> &a_mod) {
-    cout << "Entering host side gpu_ntt_forward function" << endl;
+__host__ void ntt_merge_forward(vector<uint32_t> &a, vector<vector<uint32_t>> &a_mod) {
+    cout << "Entering host side ntt_merge_forward function" << endl;
 
     // need to convert to compatible data type
     vector<Data64> a64(a.begin(), a.end());

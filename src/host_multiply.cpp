@@ -24,8 +24,7 @@ using limb_t = uint32_t; // each limb is stored in 32-bit containers
 constexpr uint64_t BASE = (1ULL << LIMB_BITS); // base b = 2^w
 
 // host functions
-void host_multiply_merge(const vector<limb_t> &A, const vector<limb_t> &B,
-          vector<limb_t> &C) {
+void host_multiply_merge(const vector<limb_t> &A, const vector<limb_t> &B, vector<limb_t> &C) {
     size_t L_A = A.size();
     size_t L_B = B.size();
     size_t L_C = L_A + L_B - 1;  // not sure what the length of outputs will be? paper suggests L_A = L_B = L_C
@@ -50,11 +49,11 @@ void host_multiply_merge(const vector<limb_t> &A, const vector<limb_t> &B,
         cout << x << " ";
     cout << endl;
 
-    // gpu_ntt_forward should return 4 versions of the NTT. don't do the for loop
+    // ntt_merge_forward should return 4 versions of the NTT. don't do the for loop
     vector<vector<uint32_t>> A_mod(NUM_MODULI, vector<uint32_t>(N));
     vector<vector<uint32_t>> B_mod(NUM_MODULI, vector<uint32_t>(N));
-    gpu_ntt_forward(A_pad, A_mod);
-    gpu_ntt_forward(B_pad, B_mod);
+    ntt_merge_forward(A_pad, A_mod);
+    ntt_merge_forward(B_pad, B_mod);
 
     // pointwise multiplication for each of the elements of A_mod, B_mod
     vector<vector<uint32_t>> C_mod;
