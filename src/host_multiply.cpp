@@ -28,7 +28,7 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
           vector<limb_t> &C) {
     size_t L_A = A.size();
     size_t L_B = B.size();
-    size_t L_C = L_A + L_B - 1;
+    size_t L_C = L_A + L_B - 1;  // not sure what the length of outputs will be? paper suggests L_A = L_B = L_C
 
     // pad to NTT length, must be power of 2
     size_t N = 1;
@@ -60,6 +60,10 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
     vector<vector<uint32_t>> C_mod;
     gpu_pointwise_multiply(A_mod, B_mod, C_mod);
 
+    // gpu_ntt_inverse calls, should do the inverse ntt computation for all 4 C_mod vectors
+    vector<vector<uint32_t>> C_recovered;
+    gpu_ntt_inverse(C_mod, C_recovered);
+
     // CRT recombination (CGBN)
     // vector<__uint128_t> C_big(N);
     // gpu_crt_reconstruct(C_mod, C_big, MODULI, NUM_MODULI);
@@ -69,6 +73,6 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
     // gpu_carry_propagate(C_big, C, BASE);
 
     // trim
-    // while (C.size() > 1 && C.back() == 0)
-    //   C.pop_back();
+    while (C.size() > 1 && C.back() == 0)
+      C.pop_back();
 }
