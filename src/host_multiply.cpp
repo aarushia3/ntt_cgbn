@@ -24,7 +24,7 @@ using limb_t = uint32_t; // each limb is stored in 32-bit containers
 constexpr uint64_t BASE = (1ULL << LIMB_BITS); // base b = 2^w
 
 // host functions
-void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
+void host_multiply_merge(const vector<limb_t> &A, const vector<limb_t> &B,
           vector<limb_t> &C) {
     size_t L_A = A.size();
     size_t L_B = B.size();
