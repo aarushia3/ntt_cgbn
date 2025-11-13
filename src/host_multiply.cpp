@@ -58,7 +58,7 @@ void host_multiply(const vector<limb_t> &A, const vector<limb_t> &B,
 
     // pointwise multiplication for each of the elements of A_mod, B_mod
     vector<vector<uint32_t>> C_mod;
-    // gpu_pointwise_multiply(A_mod, B_mod, C_mod);
+    gpu_pointwise_multiply(A_mod, B_mod, C_mod);
 
     // CRT recombination (CGBN)
     // vector<__uint128_t> C_big(N);

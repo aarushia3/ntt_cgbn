@@ -17,7 +17,9 @@ NTTFactors<Data64> factors[4] = {
     {Modulus<Data64>(7681), 3383, 4298}
 };
 
-__host__ void gpu_ntt_forward(vector<uint32_t> &a, vector<vector<uint32_t>> a_mod) {
+vector<uint32_t> moduli = {7681, 7681, 7681, 7681};
+
+__host__ void gpu_ntt_forward(vector<uint32_t> &a, vector<vector<uint32_t>> &a_mod) {
     cout << "Entering host side gpu_ntt_forward function" << endl;
 
     // need to convert to compatible data type
@@ -120,10 +122,15 @@ __host__ void gpu_ntt_forward(vector<uint32_t> &a, vector<vector<uint32_t>> a_mo
         
         for (size_t j = 0; j < parameters.n; j++) {
             uint32_t low  = static_cast<uint32_t>(Output_Host[j] & 0xFFFFFFFF);        // lower 32 bits
-            uint32_t high = static_cast<uint32_t>((Output_Host[j] >> 32) & 0xFFFFFFFF); // upper 32 bits
+            // uint32_t high = static_cast<uint32_t>((Output_Host[j] >> 32) & 0xFFFFFFFF); // upper 32 bits
             a_mod[i].push_back(low);
-            a_mod[i].push_back(high);
+            // a_mod[i].push_back(high);
         }
+
+        cout << "[HOST] a_mod[" << i << "] = [ ";
+        for (size_t k = 0; k < a_mod[i].size(); k++) // print first 16 elements
+            cout << a_mod[i][k] << " ";
+        cout << "]" << endl;
 
         GPUNTT_CUDA_CHECK(cudaFree(InOut_Datas));
         GPUNTT_CUDA_CHECK(cudaFree(Forward_Omega_Table_Device));
@@ -131,38 +138,66 @@ __host__ void gpu_ntt_forward(vector<uint32_t> &a, vector<vector<uint32_t>> a_mo
     }
 }
 
+__global__ void pointwise_mul_kernel(uint32_t* A, uint32_t* B, uint32_t* C,
+                                     uint32_t modulus, size_t N) {
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) {
+        uint64_t prod = static_cast<uint64_t>(A[idx]) * B[idx];
+        C[idx] = static_cast<uint32_t>(prod % modulus);
+    }
+}
+
 __host__ void gpu_pointwise_multiply(const vector<vector<uint32_t>>& A_mod, const vector<vector<uint32_t>>& B_mod, vector<vector<uint32_t>>& C_mod) {
-    // size_t NUM_MODULI = A_mod.size();
-    // size_t N = A_mod[0].size();
+    size_t N = A_mod[0].size();
 
-    // C_mod.resize(NUM_MODULI, vector<uint32_t>(N));
+    cout << "[HOST] Starting GPU pointwise multiplication" << endl;
 
-    // for (size_t m = 0; m < NUM_MODULI; ++m) {
-    //     // construct device arrays
-    //     const uint32_t* A_host = A_mod[m].data();
-    //     const uint32_t* B_host = B_mod[m].data();
+    for (size_t m = 0; m < NUM_MODULI; ++m) {
+        cout << "[HOST] A_mod for modulus " << m << " (mod = " << moduli[m] << "): [ ";
+        for (size_t i = 0; i < N; ++i)
+            cout << A_mod[m][i] << " ";
+        cout << "]" << endl;
 
-    //     uint32_t* C_host = C_mod[m].data();
-    //     uint32_t modulus = moduli[m];
+        cout << "[HOST] B_mod for modulus " << m << " (mod = " << moduli[m] << "): [ ";
+        for (size_t i = 0; i < N; ++i)
+            cout << B_mod[m][i] << " ";
+        cout << "]" << endl;
+    }
 
-    //     uint32_t *A_dev, *B_dev, *C_dev;
-    //     cudaMalloc(&A_dev, N * sizeof(uint32_t));
-    //     cudaMalloc(&B_dev, N * sizeof(uint32_t));
-    //     cudaMalloc(&C_dev, N * sizeof(uint32_t));
+    C_mod.resize(NUM_MODULI, vector<uint32_t>(N));
 
-    //     cudaMemcpy(A_dev, A_host, N * sizeof(uint32_t), cudaMemcpyHostToDevice);
-    //     cudaMemcpy(B_dev, B_host, N * sizeof(uint32_t), cudaMemcpyHostToDevice);
+    for (size_t m = 0; m < NUM_MODULI; ++m) {
+        cout << "[HOST] Processing modulus " << m << " (mod = " << moduli[m] << ")" << endl;
+        // construct device arrays
+        const uint32_t* A_host = A_mod[m].data();
+        const uint32_t* B_host = B_mod[m].data();
 
-    //     int threads = 256;
-    //     int blocks = (N + threads - 1) / threads;
+        uint32_t* C_host = C_mod[m].data();
+        uint32_t modulus = moduli[m];
 
-    //     pointwise_mul_kernel<<<blocks, threads>>>(A_dev, B_dev, C_dev, modulus, N);
-    //     cudaDeviceSynchronize();
+        uint32_t *A_dev, *B_dev, *C_dev;
+        GPUNTT_CUDA_CHECK(cudaMalloc(&A_dev, N * sizeof(uint32_t)));
+        GPUNTT_CUDA_CHECK(cudaMalloc(&B_dev, N * sizeof(uint32_t)));
+        GPUNTT_CUDA_CHECK(cudaMalloc(&C_dev, N * sizeof(uint32_t)));
 
-    //     cudaMemcpy(C_host, C_dev, N * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        GPUNTT_CUDA_CHECK(cudaMemcpy(A_dev, A_host, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
+        GPUNTT_CUDA_CHECK(cudaMemcpy(B_dev, B_host, N * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
-    //     cudaFree(A_dev);
-    //     cudaFree(B_dev);
-    //     cudaFree(C_dev);
-    // }
+        int threads = 256;
+        int blocks = (N + threads - 1) / threads;
+
+        pointwise_mul_kernel<<<blocks, threads>>>(A_dev, B_dev, C_dev, modulus, N);
+        GPUNTT_CUDA_CHECK(cudaDeviceSynchronize());
+
+        GPUNTT_CUDA_CHECK(cudaMemcpy(C_host, C_dev, N * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+
+        cout << "[HOST] Result for modulus " << m << ": [ ";
+        for (size_t i = 0; i < N; ++i)
+            cout << C_host[i] << " ";
+        cout << "]" << endl;
+
+        GPUNTT_CUDA_CHECK(cudaFree(A_dev));
+        GPUNTT_CUDA_CHECK(cudaFree(B_dev));
+        GPUNTT_CUDA_CHECK(cudaFree(C_dev));
+    }
 }
