@@ -19,9 +19,9 @@
 using namespace std;
 
 // parameters
-constexpr unsigned LIMB_BITS = 32;
+// constexpr unsigned LIMB_BITS = 32;
 using limb_t = uint32_t; // each limb is stored in 32-bit containers
-constexpr uint64_t BASE = (1ULL << LIMB_BITS); // base b = 2^w
+// constexpr uint32_t BASE = (1ULL << LIMB_BITS); // base b = 2^w
 
 // host functions
 void host_multiply_merge(const vector<limb_t> &A, const vector<limb_t> &B, vector<limb_t> &C) {
