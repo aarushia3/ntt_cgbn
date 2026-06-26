@@ -49,8 +49,12 @@ struct NTTContext {
     uint64_t* d_seg_carry_lo = nullptr;
     uint64_t* d_seg_carry_mid = nullptr;
     uint32_t* d_seg_carry_hi = nullptr;
+    uint64_t* d_seg_carry_aux_lo = nullptr;
+    uint64_t* d_seg_carry_aux_mid = nullptr;
+    uint32_t* d_seg_carry_aux_hi = nullptr;
 #else
     int64_t*    d_seg_carry = nullptr;
+    int64_t*    d_seg_carry_aux = nullptr;
 #endif
     int*        d_carry_escape = nullptr;
 };

@@ -51,22 +51,32 @@ static vector<OutputLimbType> run_carry_prop_gpu(
 
     size_t num_segs = (N + CARRY_SEG - 1) / CARRY_SEG;
     int64_t* d_seg_carry;
+    int64_t* d_seg_carry_aux;
     cudaMalloc(&d_seg_carry, num_segs * sizeof(int64_t));
+    cudaMalloc(&d_seg_carry_aux, num_segs * sizeof(int64_t));
+
+    int64_t* carry_in = d_seg_carry;
+    int64_t* carry_out = d_seg_carry_aux;
 
     carry_intra_segment_kernel<<<num_segs, 1>>>(
-        d_C_hi, d_C_lo, d_out, d_seg_carry, N);
+        d_C_hi, d_C_lo, d_out, carry_in, N);
 
-    carry_inter_segment_kernel<<<1, 1>>>(d_seg_carry, num_segs);
+    carry_inter_segment_kernel<<<1, 1>>>(carry_in, num_segs);
 
     int* d_escape;
     cudaMalloc(&d_escape, sizeof(int));
     for (;;) {
         cudaMemset(d_escape, 0, sizeof(int));
-        carry_fixup_kernel<<<num_segs, 1>>>(d_out, d_seg_carry, N, num_segs, d_escape);
+        cudaMemset(carry_out, 0, num_segs * sizeof(int64_t));
+        carry_fixup_kernel<<<num_segs, 1>>>(
+            d_out, carry_in, carry_out, N, num_segs, d_escape);
         int escaped = 0;
         cudaMemcpy(&escaped, d_escape, sizeof(int), cudaMemcpyDeviceToHost);
         if (!escaped)
             break;
+        int64_t* tmp = carry_in;
+        carry_in = carry_out;
+        carry_out = tmp;
     }
     cudaFree(d_escape);
 
@@ -79,6 +89,7 @@ static vector<OutputLimbType> run_carry_prop_gpu(
     cudaFree(d_C_lo);
     cudaFree(d_out);
     cudaFree(d_seg_carry);
+    cudaFree(d_seg_carry_aux);
     return out;
 }
 
@@ -170,29 +181,46 @@ static vector<OutputLimbType> run_carry_prop_gpu_u160(
     cudaMemset(d_out, 0, N * sizeof(OutputLimbType));
 
     size_t num_segs = (N + CARRY_SEG - 1) / CARRY_SEG;
-    uint64_t *d_seg_carry_lo, *d_seg_carry_mid;
-    uint32_t *d_seg_carry_hi;
+    uint64_t *d_seg_carry_lo, *d_seg_carry_mid, *d_seg_carry_aux_lo, *d_seg_carry_aux_mid;
+    uint32_t *d_seg_carry_hi, *d_seg_carry_aux_hi;
     cudaMalloc(&d_seg_carry_lo, num_segs * sizeof(uint64_t));
     cudaMalloc(&d_seg_carry_mid, num_segs * sizeof(uint64_t));
     cudaMalloc(&d_seg_carry_hi, num_segs * sizeof(uint32_t));
+    cudaMalloc(&d_seg_carry_aux_lo, num_segs * sizeof(uint64_t));
+    cudaMalloc(&d_seg_carry_aux_mid, num_segs * sizeof(uint64_t));
+    cudaMalloc(&d_seg_carry_aux_hi, num_segs * sizeof(uint32_t));
+
+    uint64_t* carry_in_lo  = d_seg_carry_lo;
+    uint64_t* carry_in_mid = d_seg_carry_mid;
+    uint32_t* carry_in_hi  = d_seg_carry_hi;
+    uint64_t* carry_out_lo  = d_seg_carry_aux_lo;
+    uint64_t* carry_out_mid = d_seg_carry_aux_mid;
+    uint32_t* carry_out_hi  = d_seg_carry_aux_hi;
 
     carry_intra_segment_kernel_u160<<<num_segs, 1>>>(
         d_C_lo, d_C_mid, d_C_hi, d_out,
-        d_seg_carry_lo, d_seg_carry_mid, d_seg_carry_hi, N);
+        carry_in_lo, carry_in_mid, carry_in_hi, N);
     carry_inter_segment_kernel_u160<<<1, 1>>>(
-        d_seg_carry_lo, d_seg_carry_mid, d_seg_carry_hi, num_segs);
+        carry_in_lo, carry_in_mid, carry_in_hi, num_segs);
 
     int* d_escape;
     cudaMalloc(&d_escape, sizeof(int));
     for (;;) {
         cudaMemset(d_escape, 0, sizeof(int));
+        cudaMemset(carry_out_lo, 0, num_segs * sizeof(uint64_t));
+        cudaMemset(carry_out_mid, 0, num_segs * sizeof(uint64_t));
+        cudaMemset(carry_out_hi, 0, num_segs * sizeof(uint32_t));
         carry_fixup_kernel_u160<<<num_segs, 1>>>(
-            d_out, d_seg_carry_lo, d_seg_carry_mid, d_seg_carry_hi,
+            d_out, carry_in_lo, carry_in_mid, carry_in_hi,
+            carry_out_lo, carry_out_mid, carry_out_hi,
             N, num_segs, d_escape);
         int escaped = 0;
         cudaMemcpy(&escaped, d_escape, sizeof(int), cudaMemcpyDeviceToHost);
         if (!escaped)
             break;
+        uint64_t* t_lo = carry_in_lo;  carry_in_lo = carry_out_lo;  carry_out_lo = t_lo;
+        uint64_t* t_mid = carry_in_mid; carry_in_mid = carry_out_mid; carry_out_mid = t_mid;
+        uint32_t* t_hi = carry_in_hi;  carry_in_hi = carry_out_hi;  carry_out_hi = t_hi;
     }
     cudaDeviceSynchronize();
 
@@ -202,6 +230,7 @@ static vector<OutputLimbType> run_carry_prop_gpu_u160(
     cudaFree(d_C_lo); cudaFree(d_C_mid); cudaFree(d_C_hi);
     cudaFree(d_out);
     cudaFree(d_seg_carry_lo); cudaFree(d_seg_carry_mid); cudaFree(d_seg_carry_hi);
+    cudaFree(d_seg_carry_aux_lo); cudaFree(d_seg_carry_aux_mid); cudaFree(d_seg_carry_aux_hi);
     cudaFree(d_escape);
     return out;
 }

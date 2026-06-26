@@ -48,11 +48,15 @@ __global__ void carry_inter_segment_kernel(
     // seg_carry[0] will always be 0 (nothing flows into the first segment)
 }
 
-// Pass 3: each block adds the incoming carry into its segment's limbs,
-// propagating within the segment if an addition overflows a limb.
+// Pass 3: each block reads incoming carry from seg_carry_in[seg] (read-only this
+// pass) and writes any overflow to seg_carry_out[seg+1]. The host ping-pongs two
+// carry buffers between passes (memset the new out-buffer to zero, then swap):
+// nothing reads seg_carry_out during a pass, so escape writes need no atomics and
+// cannot race a concurrent consume-store on the same slot.
 __global__ void carry_fixup_kernel(
     OutputLimbType* __restrict__ out,
-    int64_t*          __restrict__ seg_carry,
+    const int64_t*    __restrict__ seg_carry_in,
+    int64_t*          __restrict__ seg_carry_out,
     size_t N,
     size_t num_segs,
     int*              __restrict__ escape_flag)
@@ -63,7 +67,7 @@ __global__ void carry_fixup_kernel(
     size_t seg_start = seg * CARRY_SEG;
     size_t seg_end   = min(seg_start + CARRY_SEG, N);
 
-    int64_t incoming = seg_carry[seg];
+    int64_t incoming = seg_carry_in[seg];
     if (incoming == 0) return;
 
     for (size_t i = seg_start; i < seg_end && incoming != 0; i++) {
@@ -73,8 +77,7 @@ __global__ void carry_fixup_kernel(
     }
 
     if (incoming != 0 && seg + 1 < num_segs) {
-        atomicAdd(reinterpret_cast<unsigned long long*>(&seg_carry[seg + 1]),
-                  static_cast<unsigned long long>(incoming));
+        seg_carry_out[seg + 1] = incoming;
         *escape_flag = 1;
     }
 }
@@ -91,25 +94,6 @@ void u160_add_dev(uint64_t& lo, uint64_t& mid, uint32_t& hi,
     mid += b_mid + c;
     c = (mid < old || (c && mid == old)) ? 1ULL : 0ULL;
     hi += b_hi + (uint32_t)c;
-}
-
-__device__ __forceinline__
-void atomic_add_seg_u160(uint64_t* seg_lo, uint64_t* seg_mid, uint32_t* seg_hi,
-                         size_t idx, uint64_t a_lo, uint64_t a_mid, uint32_t a_hi) {
-    if (a_lo == 0 && a_mid == 0 && a_hi == 0)
-        return;
-    unsigned long long old_lo =
-        atomicAdd(reinterpret_cast<unsigned long long*>(&seg_lo[idx]),
-                  static_cast<unsigned long long>(a_lo));
-    uint64_t carry = (old_lo + a_lo < old_lo) ? 1ULL : 0ULL;
-    if (a_mid != 0 || carry != 0) {
-        unsigned long long old_mid =
-            atomicAdd(reinterpret_cast<unsigned long long*>(&seg_mid[idx]),
-                      static_cast<unsigned long long>(a_mid + carry));
-        carry = (old_mid + a_mid + carry < old_mid) ? 1ULL : 0ULL;
-    }
-    if (a_hi != 0 || carry != 0)
-        atomicAdd(reinterpret_cast<unsigned int*>(&seg_hi[idx]), a_hi + (uint32_t)carry);
 }
 
 __global__ void carry_intra_segment_kernel_u160(
@@ -173,9 +157,12 @@ __global__ void carry_inter_segment_kernel_u160(
 
 __global__ void carry_fixup_kernel_u160(
     OutputLimbType* __restrict__ out,
-    uint64_t*         __restrict__ seg_carry_lo,
-    uint64_t*         __restrict__ seg_carry_mid,
-    uint32_t*         __restrict__ seg_carry_hi,
+    const uint64_t*   __restrict__ seg_carry_in_lo,
+    const uint64_t*   __restrict__ seg_carry_in_mid,
+    const uint32_t*   __restrict__ seg_carry_in_hi,
+    uint64_t*         __restrict__ seg_carry_out_lo,
+    uint64_t*         __restrict__ seg_carry_out_mid,
+    uint32_t*         __restrict__ seg_carry_out_hi,
     size_t N,
     size_t num_segs,
     int*              __restrict__ escape_flag)
@@ -186,12 +173,12 @@ __global__ void carry_fixup_kernel_u160(
     size_t seg_start = seg * CARRY_SEG;
     size_t seg_end   = min(seg_start + CARRY_SEG, N);
 
-    uint64_t c_lo = seg_carry_lo[seg];
-    uint64_t c_mid = seg_carry_mid[seg];
-    uint32_t c_hi = seg_carry_hi[seg];
+    uint64_t c_lo = seg_carry_in_lo[seg];
+    uint64_t c_mid = seg_carry_in_mid[seg];
+    uint32_t c_hi = seg_carry_in_hi[seg];
     if (c_lo == 0 && c_mid == 0 && c_hi == 0) return;
 
-    for (size_t i = seg_start; i < seg_end; i++) {
+    for (size_t i = seg_start; i < seg_end && (c_lo != 0 || c_mid != 0 || c_hi != 0); i++) {
         uint64_t lo = out[i];
         uint64_t mid = 0;
         uint32_t hi = 0;
@@ -203,8 +190,9 @@ __global__ void carry_fixup_kernel_u160(
     }
 
     if ((c_lo != 0 || c_mid != 0 || c_hi != 0) && seg + 1 < num_segs) {
-        atomic_add_seg_u160(seg_carry_lo, seg_carry_mid, seg_carry_hi,
-                            seg + 1, c_lo, c_mid, c_hi);
+        seg_carry_out_lo[seg + 1]  = c_lo;
+        seg_carry_out_mid[seg + 1] = c_mid;
+        seg_carry_out_hi[seg + 1]  = c_hi;
         *escape_flag = 1;
     }
 }

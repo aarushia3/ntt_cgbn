@@ -425,8 +425,12 @@ NTTContext allocate_ntt_context(const NTTPrecomputed &pre, size_t L_A, size_t L_
     cudaMalloc(&ctx.d_seg_carry_lo, num_segs * sizeof(uint64_t));
     cudaMalloc(&ctx.d_seg_carry_mid, num_segs * sizeof(uint64_t));
     cudaMalloc(&ctx.d_seg_carry_hi, num_segs * sizeof(uint32_t));
+    cudaMalloc(&ctx.d_seg_carry_aux_lo, num_segs * sizeof(uint64_t));
+    cudaMalloc(&ctx.d_seg_carry_aux_mid, num_segs * sizeof(uint64_t));
+    cudaMalloc(&ctx.d_seg_carry_aux_hi, num_segs * sizeof(uint32_t));
 #else
     cudaMalloc(&ctx.d_seg_carry, num_segs * sizeof(int64_t));
+    cudaMalloc(&ctx.d_seg_carry_aux, num_segs * sizeof(int64_t));
 #endif
     cudaMalloc(&ctx.d_carry_escape, sizeof(int));
 
@@ -889,31 +893,48 @@ void execute_ntt_multiply(
     size_t num_segs = (ctx.N + CARRY_SEG - 1) / CARRY_SEG;
 
 #if defined(NATIVE_HOST_LIMBS)
+    uint64_t* carry_in_lo  = ctx.d_seg_carry_lo;
+    uint64_t* carry_in_mid = ctx.d_seg_carry_mid;
+    uint32_t* carry_in_hi  = ctx.d_seg_carry_hi;
+    uint64_t* carry_out_lo  = ctx.d_seg_carry_aux_lo;
+    uint64_t* carry_out_mid = ctx.d_seg_carry_aux_mid;
+    uint32_t* carry_out_hi  = ctx.d_seg_carry_aux_hi;
+#else
+    int64_t* carry_in  = ctx.d_seg_carry;
+    int64_t* carry_out = ctx.d_seg_carry_aux;
+#endif
+
+#if defined(NATIVE_HOST_LIMBS)
     carry_intra_segment_kernel_u160<<<num_segs, 1, 0, ctx.stream_a>>>(
         ctx.d_C_lo, ctx.d_C_mid, ctx.d_C_hi32, ctx.d_out,
-        ctx.d_seg_carry_lo, ctx.d_seg_carry_mid, ctx.d_seg_carry_hi, ctx.N);
+        carry_in_lo, carry_in_mid, carry_in_hi, ctx.N);
 #else
     carry_intra_segment_kernel<<<num_segs, 1, 0, ctx.stream_a>>>(
-        ctx.d_C_hi, ctx.d_C_lo, ctx.d_out, ctx.d_seg_carry, ctx.N);
+        ctx.d_C_hi, ctx.d_C_lo, ctx.d_out, carry_in, ctx.N);
 #endif
 
 #if defined(NATIVE_HOST_LIMBS)
     carry_inter_segment_kernel_u160<<<1, 1, 0, ctx.stream_a>>>(
-        ctx.d_seg_carry_lo, ctx.d_seg_carry_mid, ctx.d_seg_carry_hi, num_segs);
+        carry_in_lo, carry_in_mid, carry_in_hi, num_segs);
 #else
     carry_inter_segment_kernel<<<1, 1, 0, ctx.stream_a>>>(
-        ctx.d_seg_carry, num_segs);
+        carry_in, num_segs);
 #endif
 
     for (;;) {
         cudaMemsetAsync(ctx.d_carry_escape, 0, sizeof(int), ctx.stream_a);
 #if defined(NATIVE_HOST_LIMBS)
+        cudaMemsetAsync(carry_out_lo, 0, num_segs * sizeof(uint64_t), ctx.stream_a);
+        cudaMemsetAsync(carry_out_mid, 0, num_segs * sizeof(uint64_t), ctx.stream_a);
+        cudaMemsetAsync(carry_out_hi, 0, num_segs * sizeof(uint32_t), ctx.stream_a);
         carry_fixup_kernel_u160<<<num_segs, 1, 0, ctx.stream_a>>>(
-            ctx.d_out, ctx.d_seg_carry_lo, ctx.d_seg_carry_mid, ctx.d_seg_carry_hi,
+            ctx.d_out, carry_in_lo, carry_in_mid, carry_in_hi,
+            carry_out_lo, carry_out_mid, carry_out_hi,
             ctx.N, num_segs, ctx.d_carry_escape);
 #else
+        cudaMemsetAsync(carry_out, 0, num_segs * sizeof(int64_t), ctx.stream_a);
         carry_fixup_kernel<<<num_segs, 1, 0, ctx.stream_a>>>(
-            ctx.d_out, ctx.d_seg_carry, ctx.N, num_segs, ctx.d_carry_escape);
+            ctx.d_out, carry_in, carry_out, ctx.N, num_segs, ctx.d_carry_escape);
 #endif
         int escaped = 0;
         cudaMemcpyAsync(&escaped, ctx.d_carry_escape, sizeof(int),
@@ -921,6 +942,15 @@ void execute_ntt_multiply(
         cudaStreamSynchronize(ctx.stream_a);
         if (!escaped)
             break;
+#if defined(NATIVE_HOST_LIMBS)
+        uint64_t* t_lo = carry_in_lo;  carry_in_lo = carry_out_lo;  carry_out_lo = t_lo;
+        uint64_t* t_mid = carry_in_mid; carry_in_mid = carry_out_mid; carry_out_mid = t_mid;
+        uint32_t* t_hi = carry_in_hi;  carry_in_hi = carry_out_hi;  carry_out_hi = t_hi;
+#else
+        int64_t* tmp = carry_in;
+        carry_in = carry_out;
+        carry_out = tmp;
+#endif
     }
 
     if (prof.on)
@@ -995,8 +1025,12 @@ void cleanup_ntt_context(NTTContext &ctx) {
     cudaFree(ctx.d_seg_carry_lo);
     cudaFree(ctx.d_seg_carry_mid);
     cudaFree(ctx.d_seg_carry_hi);
+    cudaFree(ctx.d_seg_carry_aux_lo);
+    cudaFree(ctx.d_seg_carry_aux_mid);
+    cudaFree(ctx.d_seg_carry_aux_hi);
 #else
     cudaFree(ctx.d_seg_carry);
+    cudaFree(ctx.d_seg_carry_aux);
 #endif
     cudaFree(ctx.d_carry_escape);
 }

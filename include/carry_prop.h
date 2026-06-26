@@ -17,7 +17,8 @@ __global__ void carry_inter_segment_kernel(
 
 __global__ void carry_fixup_kernel(
     OutputLimbType* __restrict__ out,
-    int64_t*          __restrict__ seg_carry,
+    const int64_t*    __restrict__ seg_carry_in,
+    int64_t*          __restrict__ seg_carry_out,
     size_t N,
     size_t num_segs,
     int*              __restrict__ escape_flag);
@@ -41,9 +42,12 @@ __global__ void carry_inter_segment_kernel_u160(
 
 __global__ void carry_fixup_kernel_u160(
     OutputLimbType* __restrict__ out,
-    uint64_t*         __restrict__ seg_carry_lo,
-    uint64_t*         __restrict__ seg_carry_mid,
-    uint32_t*         __restrict__ seg_carry_hi,
+    const uint64_t*   __restrict__ seg_carry_in_lo,
+    const uint64_t*   __restrict__ seg_carry_in_mid,
+    const uint32_t*   __restrict__ seg_carry_in_hi,
+    uint64_t*         __restrict__ seg_carry_out_lo,
+    uint64_t*         __restrict__ seg_carry_out_mid,
+    uint32_t*         __restrict__ seg_carry_out_hi,
     size_t N,
     size_t num_segs,
     int*              __restrict__ escape_flag);
