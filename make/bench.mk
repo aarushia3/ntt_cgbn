@@ -29,6 +29,21 @@ $(BENCH_FULL_64BIT): $(BENCH_FULL_SRCS) | $(OBJ_DIR) $(GPU_NTT_LIB)
 		$^ -o $@ $(LIBS)
 
 # ================================================================
+# GMP benchmark build (host-only, no CUDA)
+# ================================================================
+
+GMP_BENCH_SRC := bench/bench_gmp_multiply.cpp
+
+BENCH_GMP_32     := build/bench_gmp_multiply_32
+BENCH_GMP_64BIT  := build/bench_gmp_multiply_64bit
+
+$(BENCH_GMP_32): $(GMP_BENCH_SRC) | $(OBJ_DIR)
+	$(CXX) -O2 -std=c++17 $< -o $@ -lgmp
+
+$(BENCH_GMP_64BIT): $(GMP_BENCH_SRC) | $(OBJ_DIR)
+	$(CXX) -O2 -std=c++17 -DNATIVE_HOST_LIMBS $< -o $@ -lgmp
+
+# ================================================================
 # Convenience targets
 # ================================================================
 
@@ -37,10 +52,13 @@ bench_full_32: $(BENCH_FULL_32)
 bench_full_hybrid: $(BENCH_FULL_HYBRID)
 bench_full_64bit: $(BENCH_FULL_64BIT)
 bench_full: bench_full_32 bench_full_hybrid bench_full_64bit
+bench_gmp_32: $(BENCH_GMP_32)
+bench_gmp_64bit: $(BENCH_GMP_64BIT)
+bench_gmp: bench_gmp_32 bench_gmp_64bit
 
 # Deprecated aliases
 bench_full_64: bench_full_hybrid
 bench_full_64native: bench_full_64bit
 
 .PHONY: bench bench_full bench_full_32 bench_full_hybrid bench_full_64bit \
-	bench_full_64 bench_full_64native
+	bench_full_64 bench_full_64native bench_gmp bench_gmp_32 bench_gmp_64bit
