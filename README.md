@@ -1,4 +1,4 @@
-# ntt_cgbn
+# birdwing
 
 GPU-accelerated large-integer multiplication using the Number Theoretic Transform (NTT) in a Residue Number System (RNS), with Chinese Remainder Theorem (CRT) reconstruction and segmented carry propagation.
 
