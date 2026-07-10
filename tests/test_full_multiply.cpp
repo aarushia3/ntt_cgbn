@@ -524,7 +524,7 @@ int main()
     #ifdef PROFILE
     
         cout << YELLOW << "==== PROFILE RUN ====\n" << RESET;
-        profile_run(1ULL << 20);
+        profile_run(1ULL << 22);
         cout << YELLOW << "==== PROFILE COMPLETE ====\n" << RESET;
         return 0;
     

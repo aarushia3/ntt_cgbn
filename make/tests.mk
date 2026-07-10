@@ -226,6 +226,14 @@ test_pipeline_crt_64bit: $(TEST_BUILD)/test_pipeline_crt_64bit
 	@$(TEST_BUILD)/test_pipeline_crt_64bit
 
 # ================================================================
+# Profile builds (single warmup + single timed run, for nsys/ncu)
+# ================================================================
+
+profile_32: | $(OBJ_DIR) $(GPU_NTT_LIB)
+	$(NVCC) $(NVCCFLAGS) -DLIMB_BITS=32 -DPROFILE $(INCLUDES) $(LIB_PATHS) \
+		$(E2E_SRCS) -o build/profile_full_multiply_32 $(LIBS)
+
+# ================================================================
 # Phony targets
 # ================================================================
 

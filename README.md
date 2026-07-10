@@ -87,6 +87,33 @@ Run a single test:
 make test TEST=test_zero_pad_32
 ```
 
+
+### Profiling
+
+The `profile_32` target (defined in `tests.mk`) build a stripped-down binary that skips the correctness/benchmark suite and instead runs a single warmup multiply followed by a single timed multiply only for the 32-bit version, sized for attaching a profiler to.
+
+```bash
+make profile_32        # build build/profile_full_multiply_32
+```
+
+> **Note:** This `profile_*` target is independent; no `PROFILE=1` flag needed. This compiles `tests/test_full_multiply.cpp` with `-DPROFILE`, which swaps in a minimal `main()` at compile time.
+
+**Nsight Systems (timeline trace):**
+
+```bash
+nsys profile -o profile_trace ./build/profile_full_multiply_32
+```
+
+Produces `profile_trace.nsys-rep`; open it in the Nsight Systems GUI to inspect kernel/stream overlap and host-device transfer timing.
+
+**Nsight Compute (per-kernel report):**
+
+```bash
+ncu -o profile_report --set full ./build/profile_full_multiply_32
+```
+
+Produces `profile_report.ncu-rep`, with per-kernel occupancy, memory throughput, and divergence metrics.
+
 ## GPU-NTT submodule
 
 This repo pins [GPU-NTT](https://github.com/Alisah-Ozcan/GPU-NTT) at the commit recorded in the parent repository. The submodule provides merge and 4-step NTT kernels used by `src/gpu_ntt.cu`.
